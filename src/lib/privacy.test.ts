@@ -66,8 +66,9 @@ describe('maskText', () => {
     expect(masked).toContain(' wrote:\n> hi');
     expect(masked).not.toContain('Alice');
     expect(masked).not.toContain('alice@example.com');
-    expect(masked).not.toContain('Oct');
-    expect(masked).toContain('<a•••@•••.com>');
+    expect(masked).toContain('On Thu, Oct 22, 2026 at 10:00 AM A••• E••• <a•••@•••.com> wrote:');
+    expect(maskText('On Oct 23, 2026, 1:40 PM UTC, Marco Rossi wrote:')).toBe('On Oct 23, 2026, 1:40 PM UTC, M••• R••• wrote:');
+    expect(maskText('> On 23 Oct 2026, marco@example.com wrote:')).toBe('> On 23 Oct 2026, m•••@•••.com wrote:');
   });
 
   it('masks forwarded and Outlook headers but not prose that happens to start with To:', () => {

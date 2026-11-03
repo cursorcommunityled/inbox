@@ -214,14 +214,18 @@ function looksLikePeople(value: string, names: readonly string[]): boolean {
   return found;
 }
 
+const DATE_WORD =
+  /^(?:mon|monday|tue|tues|tuesday|wed|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday|sun|sunday|jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december|at|am|pm|utc|gmt|cest|cet|est|edt|pst|pdt|bst)[.,]?$/i;
+
 function maskWroteMiddle(middle: string): string {
-  // "Thu, Oct 22, 2026 at 10:00 AM Alice Example <alice@example.com>" → keep the shape, hide the words.
+  // "Thu, Oct 22, 2026 at 10:00 AM Alice Example <alice@example.com>": the date stays, every other word is hidden.
   return middle
     .split(/(\s+)/)
     .map((token) => {
       if (!token.trim()) return token;
       if (token.includes('@')) return maskPerson(token);
-      return /^\p{L}/u.test(token) ? `${[...token][0]}${DOTS}` : token;
+      if (!/^\p{L}/u.test(token) || DATE_WORD.test(token)) return token;
+      return `${[...token][0]}${DOTS}`;
     })
     .join('');
 }

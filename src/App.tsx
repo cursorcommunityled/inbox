@@ -214,8 +214,9 @@ export function App() {
 
   const togglePrivacy = useCallback(() => {
     togglePrivacyBlur();
-    toast(privacyOn ? 'Names and emails shown again.' : 'Names and emails hidden. Press b to show them.');
-  }, [togglePrivacyBlur, privacyOn, toast]);
+    if (privacyOn) toast('Names and emails shown again.');
+    else toast(narrow ? 'Names and emails hidden.' : 'Names and emails hidden. Press b to show them.');
+  }, [togglePrivacyBlur, privacyOn, narrow, toast]);
   const privacy = useMemo<PrivacyState>(() => ({ on: privacyOn, names: privacyNames, toggle: togglePrivacy }), [privacyOn, privacyNames, togglePrivacy]);
   const privacyLabel = privacyOn ? 'Show names and emails' : 'Hide names and emails';
 
