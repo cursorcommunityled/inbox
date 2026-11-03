@@ -20,6 +20,15 @@ describe('linkifyToHtml', () => {
   it('links mailto', () => {
     expect(linkifyToHtml('write mailto:alice@example.com')).toContain('href="mailto:alice@example.com"');
   });
+
+  it('routes text through a custom renderer and never links a URL that carries an address', () => {
+    const render = (plain: string) => `[${plain.replace(/alice@example\.com/g, 'a•••@•••.com')}]`;
+    const html = linkifyToHtml('write mailto:alice@example.com or https://example.com/u?e=alice@example.com, see https://example.com/ok', render);
+    expect(html).not.toContain('alice@example.com');
+    expect(html).toContain('[mailto:a•••@•••.com]');
+    expect(html).toContain('[https://example.com/u?e=a•••@•••.com]');
+    expect(html).toContain('<a href="https://example.com/ok"');
+  });
 });
 
 describe('splitQuotedText', () => {

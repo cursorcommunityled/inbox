@@ -15,6 +15,7 @@ Press `?` inside the viewer for the same list.
 | `e` | Archive / unarchive |
 | `s` | Star / unstar |
 | `u` | Mark unread |
+| `b` | Blur names and emails on or off (demo mode for screen shares) |
 | `Esc` | Close compose, palette, settings, or help |
 | `?` | This cheatsheet |
 

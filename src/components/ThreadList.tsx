@@ -7,6 +7,7 @@ import { draftForThread, isStarred, isUnread, threadLabels, type LocalInboxState
 import type { Thread } from '../types/inbox';
 import { Avatar } from './Avatar';
 import { PaperclipIcon, SearchIcon, StarIcon } from './Icons';
+import { Pii } from './Privacy';
 
 const DIRECTIONS: { id: DirectionFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -149,7 +150,7 @@ export function ThreadList({
                   <span className="thread-main">
                     <span className="row-top">
                       <span className="row-sender">
-                        {senderLine}
+                        <Pii kind="people">{senderLine}</Pii>
                         {unread && <span className="sr-only"> (unread)</span>}
                       </span>
                       <span className="row-right">
@@ -167,7 +168,7 @@ export function ThreadList({
                     <span className="row-subject">{thread.subject}</span>
                     <span className="row-snippet">
                       {draft && <span className="draft-mark">{draft.handedToBotAt ? 'Handed to bot' : 'Draft'} · </span>}
-                      {latest ? messageSnippet(latest) : ''}
+                      {latest && <Pii kind="text">{messageSnippet(latest)}</Pii>}
                     </span>
                     {rowLabels.length > 0 && (
                       <span className="row-labels">

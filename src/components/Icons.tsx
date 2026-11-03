@@ -298,3 +298,23 @@ export function SparkIcon() {
     </Icon>
   );
 }
+
+export function EyeIcon() {
+  return (
+    <Icon>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Icon>
+  );
+}
+
+export function EyeOffIcon() {
+  return (
+    <Icon>
+      <path d="m3 3 18 18" />
+      <path d="M10.6 5.7A9.9 9.9 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-3.2 3.9" />
+      <path d="M6.6 6.6C3.9 8.5 2.5 12 2.5 12s3.5 6.5 9.5 6.5a9.6 9.6 0 0 0 4.1-.9" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    </Icon>
+  );
+}

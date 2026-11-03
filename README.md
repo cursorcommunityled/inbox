@@ -51,6 +51,7 @@ Your link is `https://grokbot-inbox-<you>.vercel.app/#k=<key>`: the key after `#
 | **Command palette** | `⌘K` for actions, folders, labels, addresses, threads |
 | **Keyboard first** | `j` `k` `r` `e` and friends, see [docs/SHORTCUTS.md](docs/SHORTCUTS.md) |
 | **Safe HTML mail** | Sanitized, sandboxed, remote images blocked until you say so |
+| **Demo mode** | The eye button (or `b`) masks and blurs every name and address so you can screen-share; `?blur=1` forces it on |
 | **Phone friendly** | List, thread, compose: one screen at a time, dark or light |
 
 <details>

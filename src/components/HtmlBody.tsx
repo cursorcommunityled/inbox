@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { buildEmailSrcDoc, EMAIL_IFRAME_SANDBOX, type EmailFrameOptions } from '../lib/sanitizeHtml';
+import { usePrivacy } from './Privacy';
 
-export function HtmlBody({ html, allowRemoteImages, theme }: { html: string } & EmailFrameOptions) {
+export function HtmlBody({ html, allowRemoteImages, theme }: { html: string } & Omit<EmailFrameOptions, 'privacyNames'>) {
+  const { on, names } = usePrivacy();
   const srcDoc = useMemo(
-    () => buildEmailSrcDoc(html, { allowRemoteImages, theme }),
-    [html, allowRemoteImages, theme],
+    () => buildEmailSrcDoc(html, { allowRemoteImages, theme, privacyNames: on ? names : undefined }),
+    [html, allowRemoteImages, theme, on, names],
   );
 
   return (

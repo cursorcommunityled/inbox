@@ -5,6 +5,8 @@ import { EmptyState } from './components/EmptyState';
 import {
   ArchiveIcon,
   CloseIcon,
+  EyeIcon,
+  EyeOffIcon,
   FolderOpenIcon,
   ForwardIcon,
   HashIcon,
@@ -26,6 +28,7 @@ import {
   TagIcon,
   TrashIcon,
 } from './components/Icons';
+import { Pii, PrivacyProvider, type PrivacyState } from './components/Privacy';
 import { SettingsModal } from './components/SettingsModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { Sidebar } from './components/Sidebar';
@@ -35,8 +38,10 @@ import { ThreadView } from './components/ThreadView';
 import { useInboxSession } from './hooks/useInboxSession';
 import { useLocalInboxState } from './hooks/useLocalInboxState';
 import { useMatchMedia } from './hooks/useMatchMedia';
+import { usePrivacyBlur } from './hooks/usePrivacyBlur';
 import { useTheme } from './hooks/useTheme';
 import { participantSummary } from './lib/addresses';
+import { collectNames } from './lib/privacy';
 import { copyText } from './lib/clipboard';
 import { formatRefreshCommand, type ComposeKind, type SendCommand } from './lib/command';
 import { draftKey, startDraft, type Draft } from './lib/compose';
@@ -64,6 +69,7 @@ interface Notice {
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
+  const { on: privacyOn, toggle: togglePrivacyBlur } = usePrivacyBlur();
   const narrow = useMatchMedia('(max-width: 840px)');
   const {
     inbox,
@@ -159,6 +165,7 @@ export function App() {
   }, [inbox, filters, local.state, inboxAddress, selectedId]);
   const tags = useMemo(() => (inbox ? collectPlusTags(inbox) : []), [inbox]);
   const labels = useMemo(() => allLabels(local.state), [local.state]);
+  const privacyNames = useMemo(() => collectNames(inbox), [inbox]);
   const counts = useMemo<Record<Folder, number>>(() => {
     const out: Record<Folder, number> = { inbox: 0, unread: 0, starred: 0, archived: 0 };
     for (const thread of inbox?.threads ?? []) {
@@ -191,10 +198,11 @@ export function App() {
     setPillHidden(false);
   }, [sessionId]);
 
+  // The tab title is on screen during a share too, so it drops the address while the blur is on.
   useEffect(() => {
     const unread = counts.unread > 0 ? `(${counts.unread}) ` : '';
-    document.title = inbox ? `${unread}${inbox.inbox} · Grok Bot Inbox` : 'Grok Bot Inbox';
-  }, [inbox, counts.unread]);
+    document.title = inbox ? `${unread}${privacyOn ? 'Inbox' : inbox.inbox} · Grok Bot Inbox` : 'Grok Bot Inbox';
+  }, [inbox, counts.unread, privacyOn]);
 
   useEffect(() => {
     if (!notice || notice.tone === 'error') return;
@@ -203,6 +211,13 @@ export function App() {
   }, [notice]);
 
   const toast = useCallback((message: string, tone: 'info' | 'error' = 'info') => setNotice({ message, tone }), []);
+
+  const togglePrivacy = useCallback(() => {
+    togglePrivacyBlur();
+    toast(privacyOn ? 'Names and emails shown again.' : 'Names and emails hidden. Press b to show them.');
+  }, [togglePrivacyBlur, privacyOn, toast]);
+  const privacy = useMemo<PrivacyState>(() => ({ on: privacyOn, names: privacyNames, toggle: togglePrivacy }), [privacyOn, privacyNames, togglePrivacy]);
+  const privacyLabel = privacyOn ? 'Show names and emails' : 'Hide names and emails';
 
   const openCompose = useCallback(
     (kind: ComposeKind, thread?: Thread, message?: Message) => {
@@ -374,6 +389,11 @@ export function App() {
         return;
       }
       if (showShortcuts || showSettings || compose) return;
+      if (event.key === 'b') {
+        event.preventDefault();
+        togglePrivacy();
+        return;
+      }
       if (event.key === '/') {
         event.preventDefault();
         const search = document.getElementById('mail-search');
@@ -434,6 +454,7 @@ export function App() {
     openCompose,
     archiveSelected,
     markUnreadSelected,
+    togglePrivacy,
     local,
   ]);
 
@@ -508,7 +529,7 @@ export function App() {
         items.push({
           id: `thread-${thread.id}`,
           label: thread.subject || '(no subject)',
-          hint: participantSummary(thread.participants, 2),
+          hint: <Pii kind="people">{participantSummary(thread.participants, 2)}</Pii>,
           group: 'Threads',
           keywords: thread.participants.map((p) => `${p.name ?? ''} ${p.address}`).join(' '),
           icon: <MailIcon />,
@@ -526,6 +547,16 @@ export function App() {
       }
     }
     items.push(
+      {
+        id: 'privacy',
+        label: privacyLabel,
+        hint: privacyOn ? 'privacy blur is on' : 'for screen shares and demos',
+        group: 'Settings',
+        shortcut: 'b',
+        keywords: 'privacy blur demo mask hide names emails addresses redact',
+        icon: privacyOn ? <EyeIcon /> : <EyeOffIcon />,
+        run: togglePrivacy,
+      },
       { id: 'theme', label: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme', group: 'Settings', icon: theme === 'dark' ? <SunIcon /> : <MoonIcon />, run: toggleTheme },
       { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Settings', shortcut: '?', icon: <KeyboardIcon />, run: () => setShowShortcuts(true) },
       {
@@ -556,6 +587,8 @@ export function App() {
     filters,
     counts,
     theme,
+    privacyOn,
+    privacyLabel,
     sourceKind,
     snapshot,
     snapshotLabel,
@@ -570,6 +603,7 @@ export function App() {
     setFilters,
     openThread,
     toggleTheme,
+    togglePrivacy,
     openSample,
     forget,
   ]);
@@ -577,221 +611,235 @@ export function App() {
   const pane = narrow && mobileThread && selected ? 'thread' : 'list';
 
   return (
-    <div className="app">
-      <a className="skip" href="#mailbox">
-        Skip to mail
-      </a>
-      <input
-        ref={fileRef}
-        className="sr-only"
-        type="file"
-        accept=".json,.txt,application/json,text/plain"
-        tabIndex={-1}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          event.target.value = '';
-          if (file) openFile(file);
-        }}
-      />
+    <PrivacyProvider value={privacy}>
+      <div className="app">
+        <a className="skip" href="#mailbox">
+          Skip to mail
+        </a>
+        <input
+          ref={fileRef}
+          className="sr-only"
+          type="file"
+          accept=".json,.txt,application/json,text/plain"
+          tabIndex={-1}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) openFile(file);
+          }}
+        />
 
-      {inbox && (
-        <header className="mobile-bar">
-          <div className="sidebar-brand">
-            <LogoMark size={24} />
-            <span className="brand-name">Inbox</span>
+        {inbox && (
+          <header className="mobile-bar">
+            <div className="sidebar-brand">
+              <LogoMark size={24} />
+              <span className="brand-name">Inbox</span>
+            </div>
+            <span className="mono mobile-address" title={privacyOn ? undefined : inbox.inbox}>
+              <Pii kind="address">{inbox.inbox}</Pii>
+            </span>
+            <button
+              type="button"
+              className={privacyOn ? 'icon-btn privacy-toggle is-on' : 'icon-btn privacy-toggle'}
+              onClick={togglePrivacy}
+              aria-pressed={privacyOn}
+              aria-label={privacyLabel}
+              title={`${privacyLabel} (b)`}
+            >
+              {privacyOn ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+            <button type="button" className="icon-btn" onClick={() => setShowPalette(true)} aria-label="Search and commands">
+              <SearchIcon />
+            </button>
+            <button type="button" className="icon-btn is-primary" onClick={() => openCompose('new')} aria-label="New message">
+              <PenIcon />
+            </button>
+          </header>
+        )}
+
+        {loading && !inbox ? (
+          <SkeletonInbox />
+        ) : inbox ? (
+          <div className="workspace" id="mailbox" data-show={narrow ? pane : 'all'}>
+            <Sidebar
+              inboxAddress={inbox.inbox}
+              filters={filters}
+              counts={counts}
+              labels={labels}
+              tags={tags}
+              theme={theme}
+              exportedLabel={formatExportTime(inbox.exportedAt)}
+              lite={inbox.mode === 'lite'}
+              live={snapshot ? { label: snapshotLabel, refreshing: snapshot.refreshing, stale: snapshot.stale } : null}
+              queued={queue.length}
+              privacyOn={privacyOn}
+              onFilters={setFilters}
+              onCompose={() => openCompose('new')}
+              onRefresh={() => void refresh()}
+              onToggleTheme={toggleTheme}
+              onTogglePrivacy={togglePrivacy}
+              onShortcuts={() => setShowShortcuts(true)}
+              onSettings={() => setShowSettings(true)}
+            />
+            <ThreadList
+              threads={visible}
+              total={inbox.threads.length}
+              inboxAddress={inbox.inbox}
+              selectedId={selected?.id ?? null}
+              filters={filters}
+              state={local.state}
+              onFilters={setFilters}
+              onSelect={setSelectedId}
+              onOpen={openThread}
+              onToggleStar={local.toggleStar}
+              onPalette={() => setShowPalette(true)}
+            />
+            <section className="pane read-pane" aria-label="Conversation">
+              {selected ? (
+                <ThreadView
+                  thread={selected}
+                  inboxAddress={inbox.inbox}
+                  theme={theme}
+                  remoteImages={remoteImages}
+                  inlineOpen={inlineOpen}
+                  starred={isStarred(selected.id, local.state)}
+                  archived={isArchived(selected.id, local.state)}
+                  labels={threadLabels(selected.id, local.state)}
+                  labelSuggestions={labels}
+                  draft={local.state.drafts[draftKey('reply', selected.id)]}
+                  onToggleRemote={toggleRemote}
+                  onToggleInline={toggleInline}
+                  onBack={() => setMobileThread(false)}
+                  onCompose={(kind, message) => openCompose(kind, selected, message)}
+                  onResumeDraft={() => {
+                    const draft = local.state.drafts[draftKey('reply', selected.id)];
+                    if (draft) setCompose(draft);
+                  }}
+                  onToggleStar={() => local.toggleStar(selected.id)}
+                  onToggleArchive={archiveSelected}
+                  onMarkUnread={markUnreadSelected}
+                  onAddLabel={(label) => local.addLabel(selected.id, label)}
+                  onRemoveLabel={(label) => local.removeLabel(selected.id, label)}
+                />
+              ) : (
+                <div className="read-hint">
+                  <LogoMark size={36} />
+                  <p>Select a thread to read it.</p>
+                  <p className="fine-print">
+                    <kbd>⌘K</kbd> commands · <kbd>c</kbd> compose · <kbd>?</kbd> shortcuts
+                  </p>
+                </div>
+              )}
+            </section>
           </div>
-          <span className="mono mobile-address" title={inbox.inbox}>
-            {inbox.inbox}
-          </span>
-          <button type="button" className="icon-btn" onClick={() => setShowPalette(true)} aria-label="Search and commands">
-            <SearchIcon />
-          </button>
-          <button type="button" className="icon-btn is-primary" onClick={() => openCompose('new')} aria-label="New message">
-            <PenIcon />
-          </button>
-        </header>
-      )}
+        ) : (
+          <div className="workspace is-empty" id="mailbox">
+            <EmptyState loading={loading} onOpen={() => fileRef.current?.click()} onSample={openSample} />
+            <div className="empty-foot">
+              <button type="button" className="icon-btn" onClick={toggleTheme} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
+                {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+              </button>
+            </div>
+          </div>
+        )}
 
-      {loading && !inbox ? (
-        <SkeletonInbox />
-      ) : inbox ? (
-        <div className="workspace" id="mailbox" data-show={narrow ? pane : 'all'}>
-          <Sidebar
-            inboxAddress={inbox.inbox}
-            filters={filters}
-            counts={counts}
-            labels={labels}
-            tags={tags}
-            theme={theme}
-            exportedLabel={formatExportTime(inbox.exportedAt)}
-            lite={inbox.mode === 'lite'}
-            live={snapshot ? { label: snapshotLabel, refreshing: snapshot.refreshing, stale: snapshot.stale } : null}
-            queued={queue.length}
-            onFilters={setFilters}
-            onCompose={() => openCompose('new')}
-            onRefresh={() => void refresh()}
-            onToggleTheme={toggleTheme}
-            onShortcuts={() => setShowShortcuts(true)}
-            onSettings={() => setShowSettings(true)}
-          />
-          <ThreadList
-            threads={visible}
-            total={inbox.threads.length}
-            inboxAddress={inbox.inbox}
-            selectedId={selected?.id ?? null}
-            filters={filters}
-            state={local.state}
-            onFilters={setFilters}
-            onSelect={setSelectedId}
-            onOpen={openThread}
-            onToggleStar={local.toggleStar}
-            onPalette={() => setShowPalette(true)}
-          />
-          <section className="pane read-pane" aria-label="Conversation">
-            {selected ? (
-              <ThreadView
-                thread={selected}
-                inboxAddress={inbox.inbox}
-                theme={theme}
-                remoteImages={remoteImages}
-                inlineOpen={inlineOpen}
-                starred={isStarred(selected.id, local.state)}
-                archived={isArchived(selected.id, local.state)}
-                labels={threadLabels(selected.id, local.state)}
-                labelSuggestions={labels}
-                draft={local.state.drafts[draftKey('reply', selected.id)]}
-                onToggleRemote={toggleRemote}
-                onToggleInline={toggleInline}
-                onBack={() => setMobileThread(false)}
-                onCompose={(kind, message) => openCompose(kind, selected, message)}
-                onResumeDraft={() => {
-                  const draft = local.state.drafts[draftKey('reply', selected.id)];
-                  if (draft) setCompose(draft);
-                }}
-                onToggleStar={() => local.toggleStar(selected.id)}
-                onToggleArchive={archiveSelected}
-                onMarkUnread={markUnreadSelected}
-                onAddLabel={(label) => local.addLabel(selected.id, label)}
-                onRemoveLabel={(label) => local.removeLabel(selected.id, label)}
-              />
-            ) : (
-              <div className="read-hint">
-                <LogoMark size={36} />
-                <p>Select a thread to read it.</p>
-                <p className="fine-print">
-                  <kbd>⌘K</kbd> commands · <kbd>c</kbd> compose · <kbd>?</kbd> shortcuts
-                </p>
-              </div>
-            )}
-          </section>
-        </div>
-      ) : (
-        <div className="workspace is-empty" id="mailbox">
-          <EmptyState loading={loading} onOpen={() => fileRef.current?.click()} onSample={openSample} />
-          <div className="empty-foot">
-            <button type="button" className="icon-btn" onClick={toggleTheme} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
-              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        {inbox && (sourceKind === 'link' || sourceKind === 'snapshot') && !pillHidden && (
+          <div className="privacy-pill" role="status">
+            <span className="pill-dot" aria-hidden="true" />
+            <span>
+              {sourceKind === 'snapshot' ? (
+                <>
+                  Decrypted only in your browser. The <code>#k</code> key was removed from the address bar and kept on this device.
+                </>
+              ) : (
+                <>
+                  Loaded only in your browser. The <code>#data</code> link was removed from the address bar.
+                </>
+              )}
+            </span>
+            <button type="button" className="pill-link" onClick={forget}>
+              {sourceKind === 'snapshot' ? 'Forget this device' : 'Forget'}
+            </button>
+            <button type="button" className="pill-close" onClick={() => setPillHidden(true)} aria-label="Hide">
+              <CloseIcon />
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {inbox && (sourceKind === 'link' || sourceKind === 'snapshot') && !pillHidden && (
-        <div className="privacy-pill" role="status">
-          <span className="pill-dot" aria-hidden="true" />
-          <span>
-            {sourceKind === 'snapshot' ? (
-              <>
-                Decrypted only in your browser. The <code>#k</code> key was removed from the address bar and kept on this device.
-              </>
-            ) : (
-              <>
-                Loaded only in your browser. The <code>#data</code> link was removed from the address bar.
-              </>
-            )}
-          </span>
-          <button type="button" className="pill-link" onClick={forget}>
-            {sourceKind === 'snapshot' ? 'Forget this device' : 'Forget'}
-          </button>
-          <button type="button" className="pill-close" onClick={() => setPillHidden(true)} aria-label="Hide">
-            <CloseIcon />
-          </button>
-        </div>
-      )}
+        {compose && inbox && (
+          <ComposeView
+            key={compose.id}
+            draft={compose}
+            inboxAddress={inbox.inbox}
+            onChange={(draft) => {
+              setCompose(draft);
+              local.saveDraft(draft);
+            }}
+            onHanded={(draft) => {
+              local.saveDraft(draft);
+              setCompose(null);
+            }}
+            onDiscard={() => {
+              local.discardDraft(compose.id);
+              setCompose(null);
+            }}
+            onClose={() => closeCompose(compose)}
+            onToast={toast}
+            delivery={delivery}
+            onDeliver={botReady ? deliverSend : undefined}
+            onOpenSettings={() => setShowSettings(true)}
+          />
+        )}
 
-      {compose && inbox && (
-        <ComposeView
-          key={compose.id}
-          draft={compose}
-          inboxAddress={inbox.inbox}
-          onChange={(draft) => {
-            setCompose(draft);
-            local.saveDraft(draft);
-          }}
-          onHanded={(draft) => {
-            local.saveDraft(draft);
-            setCompose(null);
-          }}
-          onDiscard={() => {
-            local.discardDraft(compose.id);
-            setCompose(null);
-          }}
-          onClose={() => closeCompose(compose)}
-          onToast={toast}
-          delivery={delivery}
-          onDeliver={botReady ? deliverSend : undefined}
-          onOpenSettings={() => setShowSettings(true)}
-        />
-      )}
+        {showPalette && (
+          <CommandPalette
+            items={paletteItems}
+            onClose={() => setShowPalette(false)}
+            onSearch={(query) => setFilters({ ...filters, query })}
+          />
+        )}
+        {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+        {showSettings && (
+          <SettingsModal
+            settings={webhook}
+            snapshot={snapshot}
+            outboxReady={outboxReady}
+            queue={queue}
+            prefilledUrl={inbox?.relay?.webhookUrl}
+            onSave={saveWebhook}
+            onClear={clearWebhook}
+            onClearQueue={clearQueue}
+            onForgetDevice={sourceKind === 'snapshot' ? forget : undefined}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
 
-      {showPalette && (
-        <CommandPalette
-          items={paletteItems}
-          onClose={() => setShowPalette(false)}
-          onSearch={(query) => setFilters({ ...filters, query })}
-        />
-      )}
-      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
-      {showSettings && (
-        <SettingsModal
-          settings={webhook}
-          snapshot={snapshot}
-          outboxReady={outboxReady}
-          queue={queue}
-          prefilledUrl={inbox?.relay?.webhookUrl}
-          onSave={saveWebhook}
-          onClear={clearWebhook}
-          onClearQueue={clearQueue}
-          onForgetDevice={sourceKind === 'snapshot' ? forget : undefined}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
-
-      {dragging && (
-        <div className="drop-overlay">
-          <div className="drop-card">
-            <strong>Drop the JSON export</strong>
-            <p>It opens locally. Nothing is uploaded.</p>
+        {dragging && (
+          <div className="drop-overlay">
+            <div className="drop-card">
+              <strong>Drop the JSON export</strong>
+              <p>It opens locally. Nothing is uploaded.</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {error && (
-        <div className="toast is-error" role="alert">
-          <p>{error}</p>
-          <button type="button" className="toast-btn" onClick={dismissError}>
-            Dismiss
-          </button>
-        </div>
-      )}
-      {notice && !error && (
-        <div className={notice.tone === 'error' ? 'toast is-error' : 'toast'} role="status">
-          <p>{notice.message}</p>
-          <button type="button" className="toast-btn" onClick={() => setNotice(null)}>
-            Dismiss
-          </button>
-        </div>
-      )}
-    </div>
+        {error && (
+          <div className="toast is-error" role="alert">
+            <p>{error}</p>
+            <button type="button" className="toast-btn" onClick={dismissError}>
+              Dismiss
+            </button>
+          </div>
+        )}
+        {notice && !error && (
+          <div className={notice.tone === 'error' ? 'toast is-error' : 'toast'} role="status">
+            <p>{notice.message}</p>
+            <button type="button" className="toast-btn" onClick={() => setNotice(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
+      </div>
+    </PrivacyProvider>
   );
 }

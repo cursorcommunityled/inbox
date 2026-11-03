@@ -12,6 +12,7 @@ export const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ['e'], label: 'Archive / unarchive' },
   { keys: ['s'], label: 'Star / unstar' },
   { keys: ['u'], label: 'Mark unread' },
+  { keys: ['b'], label: 'Blur names and emails (demo mode)' },
   { keys: ['/'], label: 'Search' },
   { keys: ['Esc'], label: 'Close compose, palette, or this help' },
   { keys: ['?'], label: 'This cheatsheet' },

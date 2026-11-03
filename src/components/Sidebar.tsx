@@ -1,6 +1,8 @@
 import { FOLDERS, type Folder, type ThreadFilters } from '../lib/filterThreads';
 import {
   ArchiveIcon,
+  EyeIcon,
+  EyeOffIcon,
   HashIcon,
   InboxIcon,
   KeyboardIcon,
@@ -14,6 +16,7 @@ import {
   SunIcon,
   TagIcon,
 } from './Icons';
+import { Pii } from './Privacy';
 
 const FOLDER_ICONS: Record<Folder, React.ReactNode> = {
   inbox: <InboxIcon />,
@@ -33,10 +36,12 @@ export function Sidebar({
   lite,
   live,
   queued = 0,
+  privacyOn,
   onFilters,
   onCompose,
   onRefresh,
   onToggleTheme,
+  onTogglePrivacy,
   onShortcuts,
   onSettings,
 }: {
@@ -52,18 +57,32 @@ export function Sidebar({
   live: { label: string; refreshing: boolean; stale: boolean } | null;
   /** Drafts left in the encrypted outbox that the bot has not picked up yet. */
   queued?: number;
+  /** Names and addresses are masked and blurred (demo mode). */
+  privacyOn: boolean;
   onFilters: (filters: ThreadFilters) => void;
   onCompose: () => void;
   onRefresh: () => void;
   onToggleTheme: () => void;
+  onTogglePrivacy: () => void;
   onShortcuts: () => void;
   onSettings: () => void;
 }) {
+  const privacyLabel = privacyOn ? 'Show names and emails' : 'Hide names and emails';
   return (
     <aside className="sidebar" aria-label="Folders and labels">
       <div className="sidebar-brand">
         <LogoMark size={26} />
         <span className="brand-name">Grok Bot Inbox</span>
+        <button
+          type="button"
+          className={privacyOn ? 'icon-btn privacy-toggle is-on' : 'icon-btn privacy-toggle'}
+          onClick={onTogglePrivacy}
+          aria-pressed={privacyOn}
+          aria-label={privacyLabel}
+          title={`${privacyLabel} (b)`}
+        >
+          {privacyOn ? <EyeOffIcon /> : <EyeIcon />}
+        </button>
       </div>
       <button type="button" className="btn btn-primary compose-btn" onClick={onCompose} title="New message (c)">
         <PenIcon />
@@ -130,8 +149,8 @@ export function Sidebar({
       )}
       <div className="side-spacer" />
       <footer className="side-foot">
-        <p className="mono side-address" title={inboxAddress}>
-          {inboxAddress}
+        <p className="mono side-address" title={privacyOn ? undefined : inboxAddress}>
+          <Pii kind="address">{inboxAddress}</Pii>
         </p>
         <p className="side-meta">
           {live ? (

@@ -6,7 +6,7 @@ export interface PaletteItem {
   id: string;
   label: string;
   group: string;
-  hint?: string;
+  hint?: ReactNode;
   shortcut?: string;
   keywords?: string;
   icon?: ReactNode;
