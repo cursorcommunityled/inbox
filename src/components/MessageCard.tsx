@@ -8,9 +8,11 @@ import { AttachmentList } from './AttachmentList';
 import { Avatar } from './Avatar';
 import { HtmlBody } from './HtmlBody';
 import { ForwardIcon, ReplyAllIcon, ReplyIcon } from './Icons';
+import { Pii, usePrivacy } from './Privacy';
 import { TextBody } from './TextBody';
 
 export function CollapsedMessage({ message, onOpen }: { message: Message; onOpen: () => void }) {
+  const privacy = usePrivacy();
   const label = shortName(message.from);
   return (
     <button
@@ -18,11 +20,15 @@ export function CollapsedMessage({ message, onOpen }: { message: Message; onOpen
       className="message-collapsed"
       onClick={onOpen}
       aria-expanded={false}
-      aria-label={`Show message from ${label}`}
+      aria-label={`Show message from ${privacy.text('name', label)}`}
     >
       <Avatar participant={message.from} />
-      <span className="collapsed-name">{label}</span>
-      <span className="row-snippet">{messageSnippet(message) || 'Empty message'}</span>
+      <span className="collapsed-name">
+        <Pii kind="name">{label}</Pii>
+      </span>
+      <span className="row-snippet">
+        <Pii kind="text">{messageSnippet(message) || 'Empty message'}</Pii>
+      </span>
       <time className="mono" dateTime={message.date || undefined}>
         {message.date ? formatThreadTime(message.date) : ''}
       </time>
@@ -68,8 +74,14 @@ export function MessageCard({
         <Avatar participant={message.from} />
         <div className="message-who">
           <div className="message-from">
-            <strong>{label}</strong>
-            {showAddress && <span className="message-address mono">{message.from.address}</span>}
+            <strong>
+              <Pii kind="name">{label}</Pii>
+            </strong>
+            {showAddress && (
+              <span className="message-address mono">
+                <Pii kind="address">{message.from.address}</Pii>
+              </span>
+            )}
             {isYou && <span className="you-pill">You</span>}
             {direction === 'sent' && !isYou && <span className="you-pill">Sent</span>}
           </div>
@@ -78,13 +90,17 @@ export function MessageCard({
               {toLine && (
                 <>
                   <span className="recipients-label">to</span>
-                  <span className="mono">{toLine}</span>
+                  <span className="mono">
+                    <Pii kind="people">{toLine}</Pii>
+                  </span>
                 </>
               )}
               {ccLine && (
                 <>
                   <span className="recipients-label">cc</span>
-                  <span className="mono">{ccLine}</span>
+                  <span className="mono">
+                    <Pii kind="people">{ccLine}</Pii>
+                  </span>
                 </>
               )}
             </p>

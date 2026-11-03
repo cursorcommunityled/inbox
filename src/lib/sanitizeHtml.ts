@@ -1,8 +1,15 @@
 import DOMPurify from 'dompurify';
+import { maskText, maskTextSegments } from './privacy';
 
 export interface EmailFrameOptions {
   allowRemoteImages: boolean;
   theme: 'light' | 'dark';
+  /**
+   * Privacy blur: when set, addresses and these display names inside the
+   * message are replaced by masked placeholders wrapped in `.pii`, which the
+   * frame stylesheet blurs. `mailto:` links lose their href as well.
+   */
+  privacyNames?: readonly string[];
 }
 
 /**
@@ -77,9 +84,9 @@ const PURIFY_CONFIG = {
   ALLOW_DATA_ATTR: false,
 };
 
-export function sanitizeEmailHtml(html: string, allowRemoteImages: boolean): string {
+export function sanitizeEmailHtml(html: string, allowRemoteImages: boolean, privacyNames?: readonly string[]): string {
   const clean = String(getPurifier().sanitize(html, PURIFY_CONFIG));
-  return rewriteUntrustedHtml(clean, allowRemoteImages);
+  return rewriteUntrustedHtml(clean, allowRemoteImages, privacyNames);
 }
 
 export function htmlHasRemoteImages(html: string): boolean {
@@ -91,7 +98,7 @@ export function htmlHasRemoteImages(html: string): boolean {
 }
 
 export function buildEmailSrcDoc(html: string, options: EmailFrameOptions): string {
-  const body = sanitizeEmailHtml(html, options.allowRemoteImages);
+  const body = sanitizeEmailHtml(html, options.allowRemoteImages, options.privacyNames);
   const colors = FRAME_COLORS[options.theme];
   const imgSrc = options.allowRemoteImages ? 'data: blob: https: http:' : 'data: blob:';
   return `<!DOCTYPE html>
@@ -131,13 +138,14 @@ export function buildEmailSrcDoc(html: string, options: EmailFrameOptions): stri
   }
   table { max-width: 100%; border-collapse: collapse; }
   td, th { vertical-align: top; }
+  .pii { filter: blur(0.32em); user-select: none; -webkit-user-select: none; pointer-events: none; }
 </style>
 </head>
 <body>${body}</body>
 </html>`;
 }
 
-function rewriteUntrustedHtml(html: string, allowRemoteImages: boolean): string {
+function rewriteUntrustedHtml(html: string, allowRemoteImages: boolean, privacyNames?: readonly string[]): string {
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
   const body = doc.body;
   for (const el of Array.from(body.querySelectorAll('*'))) {
@@ -160,9 +168,45 @@ function rewriteUntrustedHtml(html: string, allowRemoteImages: boolean): string 
       const href = el.getAttribute('href');
       if (href && !isAllowedLink(href)) el.removeAttribute('href');
     }
+    if (privacyNames) maskElementAttributes(el, privacyNames);
   }
   collapseQuotes(body);
+  if (privacyNames) maskTextNodes(body, privacyNames);
   return body.innerHTML;
+}
+
+/** Tooltips, alt text and `mailto:` hrefs can carry a name or an address too. */
+function maskElementAttributes(el: Element, names: readonly string[]): void {
+  for (const name of ['title', 'alt', 'aria-label']) {
+    const value = el.getAttribute(name);
+    if (value) el.setAttribute(name, maskText(value, names));
+  }
+  const href = el.getAttribute('href');
+  if (href && (href.trim().toLowerCase().startsWith('mailto:') || href.includes('@'))) el.removeAttribute('href');
+}
+
+/** Replaces every text run that contains an address or a known name with masked `.pii` spans. */
+function maskTextNodes(body: HTMLElement, names: readonly string[]): void {
+  const doc = body.ownerDocument;
+  const walker = doc.createTreeWalker(body, 4 /* NodeFilter.SHOW_TEXT */);
+  const nodes: Text[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node as Text);
+  for (const node of nodes) {
+    const segments = maskTextSegments(node.data, names);
+    if (!segments.some((segment) => segment.masked)) continue;
+    const fragment = doc.createDocumentFragment();
+    for (const segment of segments) {
+      if (!segment.masked) {
+        fragment.append(doc.createTextNode(segment.text));
+        continue;
+      }
+      const span = doc.createElement('span');
+      span.className = 'pii';
+      span.textContent = segment.text;
+      fragment.append(span);
+    }
+    node.replaceWith(fragment);
+  }
 }
 
 function rewriteUrlAttribute(el: Element, name: string, allowRemoteImages: boolean): void {

@@ -55,30 +55,36 @@ export function escapeHtml(value: string): string {
 
 const URL_PATTERN = /(?:https?:\/\/|mailto:)[^\s<]+/gi;
 
-/** Escape plain text and turn http(s) and mailto URLs into links. */
-export function linkifyToHtml(text: string): string {
+/**
+ * Escape plain text and turn http(s) and mailto URLs into links.
+ * `renderText` replaces the plain escaping (the privacy blur uses it to mask
+ * names and addresses); a URL that carries an address is then rendered as
+ * text through it instead of becoming a link, so no href keeps the original.
+ */
+export function linkifyToHtml(text: string, renderText: (plain: string) => string = escapeHtml): string {
   const input = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const masking = renderText !== escapeHtml;
   let html = '';
   let last = 0;
   for (const match of input.matchAll(URL_PATTERN)) {
     const index = match.index ?? 0;
     const raw = match[0] ?? '';
-    html += escapeHtml(input.slice(last, index));
+    html += renderText(input.slice(last, index));
     let url = raw;
     let trailing = '';
     while (url && /[.,;:!?)\]]$/.test(url)) {
       trailing = url.slice(-1) + trailing;
       url = url.slice(0, -1);
     }
-    if (isSafeHref(url)) {
+    if (isSafeHref(url) && !(masking && url.includes('@'))) {
       html += `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
     } else {
-      html += escapeHtml(url);
+      html += renderText(url);
     }
     html += escapeHtml(trailing);
     last = index + raw.length;
   }
-  html += escapeHtml(input.slice(last));
+  html += renderText(input.slice(last));
   return html;
 }
 

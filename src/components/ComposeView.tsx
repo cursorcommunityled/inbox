@@ -3,7 +3,9 @@ import { canShare, copyText, shareText } from '../lib/clipboard';
 import { CommandError, formatSendCommand, parseRecipients, type SendCommand } from '../lib/command';
 import { draftBody, type Draft } from '../lib/compose';
 import { OUTBOX_PICKUP_HINT, type DeliveryOutcome, type DeliveryTarget } from '../lib/outbox';
+import { maskText, maskTextToHtml } from '../lib/privacy';
 import { CloseIcon, CopyIcon, MaximizeIcon, MinimizeIcon, SendIcon, ShareIcon, TrashIcon } from './Icons';
+import { Pii, usePrivacy } from './Privacy';
 
 const TITLES: Record<Draft['kind'], string> = {
   new: 'New message',
@@ -38,6 +40,7 @@ export function ComposeView({
   onOpenSettings?: () => void;
 }) {
   const botReady = delivery !== 'copy' && Boolean(onDeliver);
+  const privacy = usePrivacy();
   const toRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [showCommand, setShowCommand] = useState(false);
@@ -168,12 +171,15 @@ export function ComposeView({
         <div className="compose-fields">
           <div className="field is-static">
             <span>From</span>
-            <span className="mono field-static">{inboxAddress}</span>
+            <span className="mono field-static">
+              <Pii kind="address">{inboxAddress}</Pii>
+            </span>
           </div>
           <label className="field">
             <span>To</span>
             <input
               ref={toRef}
+              className="pii-field"
               type="text"
               inputMode="email"
               autoComplete="off"
@@ -185,7 +191,15 @@ export function ComposeView({
           </label>
           <label className="field">
             <span>Cc</span>
-            <input type="text" inputMode="email" autoComplete="off" spellCheck={false} value={draft.cc} onChange={(event) => update({ cc: event.target.value })} />
+            <input
+              className="pii-field"
+              type="text"
+              inputMode="email"
+              autoComplete="off"
+              spellCheck={false}
+              value={draft.cc}
+              onChange={(event) => update({ cc: event.target.value })}
+            />
           </label>
           <label className="field">
             <span>Subject</span>
@@ -207,7 +221,12 @@ export function ComposeView({
                   Include the {draft.kind === 'forward' ? 'forwarded message' : 'quoted original'}
                 </label>
               </summary>
-              <textarea className="compose-quote" aria-label="Quoted original" value={draft.quoted} rows={6} onChange={(event) => update({ quoted: event.target.value })} />
+              {privacy.on ? (
+                // A textarea cannot blur part of its text, so the quoted original is shown masked and read-only; the draft keeps the real text.
+                <textarea className="compose-quote" aria-label="Quoted original (names and emails hidden)" value={maskText(draft.quoted, privacy.names)} rows={6} readOnly />
+              ) : (
+                <textarea className="compose-quote" aria-label="Quoted original" value={draft.quoted} rows={6} onChange={(event) => update({ quoted: event.target.value })} />
+              )}
             </details>
           )}
         </div>
@@ -218,11 +237,14 @@ export function ComposeView({
           </p>
         )}
 
-        {showCommand && (
-          <pre className="command-preview mono" tabIndex={0} aria-label="Command block">
-            {command.text ?? `Fix the draft first: ${command.problem}`}
-          </pre>
-        )}
+        {showCommand &&
+          (privacy.on && command.text ? (
+            <pre className="command-preview mono" tabIndex={0} aria-label="Command block (names and emails hidden)" dangerouslySetInnerHTML={{ __html: maskTextToHtml(command.text, privacy.names) }} />
+          ) : (
+            <pre className="command-preview mono" tabIndex={0} aria-label="Command block">
+              {command.text ?? `Fix the draft first: ${command.problem}`}
+            </pre>
+          ))}
 
         <footer className="compose-foot">
           <button type="submit" className="btn btn-primary" disabled={sending}>

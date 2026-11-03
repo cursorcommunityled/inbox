@@ -7,6 +7,7 @@ import type { Message, Thread } from '../types/inbox';
 import { ArchiveIcon, ChevronLeftIcon, ForwardIcon, MailIcon, ReplyAllIcon, ReplyIcon, StarIcon } from './Icons';
 import { LabelEditor } from './LabelEditor';
 import { CollapsedMessage, MessageCard } from './MessageCard';
+import { Pii } from './Privacy';
 
 export function ThreadView({
   thread,
@@ -114,7 +115,7 @@ export function ThreadView({
         <header className="read-head">
           <h1>{thread.subject}</h1>
           <p className="read-sub">
-            {participantSummary(thread.participants)} <span className="dot-sep">·</span> {countText}
+            <Pii kind="people">{participantSummary(thread.participants)}</Pii> <span className="dot-sep">·</span> {countText}
             {archived && <span className="state-pill">Archived</span>}
           </p>
           <div className="read-meta">

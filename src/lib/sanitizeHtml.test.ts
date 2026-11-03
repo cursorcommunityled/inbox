@@ -36,6 +36,35 @@ describe('sanitizeEmailHtml', () => {
     expect(html).toContain('<details class="quoted-reply">');
     expect(html).toContain('Quoted text');
   });
+
+  it('masks names and addresses inside the body when the privacy blur is on', () => {
+    const personal =
+      '<p>Hi, this is <b>Alice Example</b>.</p>' +
+      '<p>Write to <a href="mailto:alice@example.com" title="Mail Alice">alice@example.com</a> or see <a href="https://example.com/x">the page</a>.</p>' +
+      '<img alt="Alice Example portrait" src="data:image/png;base64,AA==">' +
+      '<div class="gmail_quote">On Thu, Oct 22, 2026 at 10:00 AM Alice Example &lt;<a href="mailto:alice@example.com">alice@example.com</a>&gt; wrote:<blockquote>old</blockquote></div>';
+    const plain = sanitizeEmailHtml(personal, false);
+    expect(plain).toContain('Alice Example');
+    expect(plain).toContain('href="mailto:alice@example.com"');
+    expect(plain).not.toContain('class="pii"');
+
+    const masked = sanitizeEmailHtml(personal, false, ['Alice Example', 'Alice']);
+    expect(masked).not.toContain('Alice');
+    expect(masked).not.toContain('alice@example.com');
+    expect(masked).not.toContain('mailto:');
+    expect(masked).toContain('<span class="pii">A••• E•••</span>');
+    expect(masked).toContain('<span class="pii">a•••@•••.com</span>');
+    expect(masked).toContain('alt="A••• E••• portrait"');
+    expect(masked).toContain('title="Mail A•••"');
+    expect(masked).toContain('href="https://example.com/x"');
+    expect(masked).toContain('Hi, this is ');
+    expect(masked).toContain('<details class="quoted-reply">');
+  });
+
+  it('masks addresses in HTML even when the export lists no names', () => {
+    const masked = sanitizeEmailHtml('<p>Contact bob@example.org today</p>', false, []);
+    expect(masked).toBe('<p>Contact <span class="pii">b•••@•••.org</span> today</p>');
+  });
 });
 
 describe('email frame', () => {
@@ -60,5 +89,12 @@ describe('email frame', () => {
     });
     expect(allowed).toContain('img-src data: blob: https: http:;');
     expect(allowed).toContain('https://images.example.com/a.png');
+  });
+
+  it('blurs .pii runs inside the frame when the privacy blur is on', () => {
+    const doc = buildEmailSrcDoc('<p>alice@example.com</p>', { allowRemoteImages: false, theme: 'dark', privacyNames: [] });
+    expect(doc).toContain('.pii { filter: blur(');
+    expect(doc).toContain('<span class="pii">a•••@•••.com</span>');
+    expect(doc).not.toContain('alice@example.com');
   });
 });
