@@ -7,7 +7,7 @@
 **A real inbox for the mail your Grok Bot receives. Private, free, and hosted by you.**
 
 [![Try the demo](https://img.shields.io/badge/%E2%96%B6%20%20Try%20the%20demo-111113?style=for-the-badge&logoColor=white)](https://grokbot-inbox-mascarock.vercel.app/demo)
-[![Get it in 1 click](https://img.shields.io/badge/%E2%9C%A6%20%20Get%20it%20in%201%20click-fafafa?style=for-the-badge&labelColor=fafafa&color=fafafa)](BOT_TEMPLATE_LINK)
+[![Get it in 1 click](https://img.shields.io/badge/%E2%9C%A6%20%20Get%20it%20in%201%20click-fafafa?style=for-the-badge&labelColor=fafafa&color=fafafa)](https://x.ai/bot/MAHEu3SrSY7PnomT5Ik1D)
 [![Deploy your own](https://img.shields.io/badge/%E2%96%B2%20%20Deploy%20your%20own-111113?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/new/clone?repository-url=https://github.com/mascarock/grokbot-inbox&project-name=grokbot-inbox)
 
 <img src="docs/screenshots/hero-dark.png" alt="Grok Bot Inbox: folders and labels on the left, a dense thread list, and an open conversation" width="100%" />
